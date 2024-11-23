@@ -1,1 +1,5 @@
-
+spring:
+  security:
+    jwt:
+      key: my-secret-key
+      expire: 7

@@ -2,6 +2,9 @@ package com.example.config;
 
 
 import com.example.entity.RestBean;
+import com.example.entity.vo.response.AuthorizeVO;
+import com.example.utils.JwtUtils;
+import jakarta.annotation.Resource;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -12,12 +15,16 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.web.SecurityFilterChain;
 
 import java.io.IOException;
 
 @Configuration
 public class SecurityConfiguration {
+
+    @Resource
+    JwtUtils jwtUtils;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -46,7 +53,16 @@ public class SecurityConfiguration {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(RestBean.success().asJSONString());
+        User principal = (User) authentication.getPrincipal();
+        String token = jwtUtils.createJwt(principal, 1, "小明");
+
+        AuthorizeVO authorizeVO = new AuthorizeVO();
+        authorizeVO.setToken(token);
+        authorizeVO.setRole("");
+        authorizeVO.setExpireTime(jwtUtils.expireTime());
+        authorizeVO.setUsername("小明");
+
+        response.getWriter().write(RestBean.success(authorizeVO).asJSONString());
     }
 
     public void onAuthenticationFailure(HttpServletRequest request,
