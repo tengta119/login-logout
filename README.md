@@ -164,3 +164,131 @@ public class AuthorizeVO {
     }
 ```
 
+
+
+# Jwt请求头校验
+
+用户每次向后端请求数据，会携带token，在SpringSecurity过滤链中进行校验
+
+## SecurityConfiguration
+
+```java
+@Configuration
+public class SecurityConfiguration {
+
+    @Resource
+    JwtUtils jwtUtils;
+
+    @Resource
+    JwtAuthorizeFilter jwtAuthorizeFilter;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        return http
+                .authorizeHttpRequests(conf -> conf
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .formLogin(conf -> conf
+                        .loginProcessingUrl("/api/auth/login")
+                        .successHandler(this::onAuthenticationSuccess)
+                        .failureHandler(this::onAuthenticationFailure)
+                )
+                .logout(conf -> conf
+                        .logoutUrl("/api/auth/logout")
+                        .logoutSuccessHandler(this::onLogoutSuccess)
+                )
+                .exceptionHandling(conf -> conf
+                        .authenticationEntryPoint(this::commence)
+                        .accessDeniedHandler(this::handle)
+                )
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(conf -> conf
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .addFilterBefore(jwtAuthorizeFilter, UsernamePasswordAuthenticationFilter.class)
+
+                .build();
+    }
+
+    public void onAuthenticationSuccess(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        Authentication authentication) throws IOException, ServletException {
+        response.setContentType("application/json;charset=UTF-8");
+        User principal = (User) authentication.getPrincipal();
+        String token = jwtUtils.createJwt(principal, 1, "小明");
+
+        AuthorizeVO authorizeVO = new AuthorizeVO();
+        authorizeVO.setToken(token);
+        authorizeVO.setRole("");
+        authorizeVO.setExpireTime(jwtUtils.expireTime());
+        authorizeVO.setUsername("小明");
+
+        response.getWriter().write(RestBean.success(authorizeVO).asJSONString());
+    }
+
+    public void onLogoutSuccess(HttpServletRequest request,
+                                HttpServletResponse response,
+                                Authentication authentication) throws IOException, ServletException {
+
+    }
+
+    public void onAuthenticationFailure(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        AuthenticationException exception) throws IOException, ServletException {
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(RestBean.unauthorized(exception.getMessage()).asJSONString());
+    }
+
+    public void handle(HttpServletRequest request,
+                       HttpServletResponse response,
+                       AccessDeniedException accessDeniedException) throws IOException, ServletException {
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(RestBean.forbidden(accessDeniedException.getMessage()).asJSONString());
+    }
+
+    public void commence(HttpServletRequest request,
+                         HttpServletResponse response,
+                         AuthenticationException authException) throws IOException, ServletException {
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(RestBean.unauthorized(authException.getMessage()).asJSONString());
+    }
+}
+
+```
+
+添加过滤**addFilterBefore**
+
+```java
+addFilterBefore(jwtAuthorizeFilter, UsernamePasswordAuthenticationFilter.class)
+```
+
+## JwtAuthorizeFilter
+
+验证jwt
+
+```java
+@Component
+public class JwtAuthorizeFilter extends OncePerRequestFilter { //过滤器
+
+    @Resource
+    JwtUtils jwtUtils;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+        String authorization = request.getHeader("Authorization");
+        DecodedJWT jwt = jwtUtils.resolveJwt(authorization);
+        if (jwt != null) {
+            UserDetails user = jwtUtils.toUser(jwt);
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            request.setAttribute("id", jwtUtils.toId(jwt));
+        }
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
