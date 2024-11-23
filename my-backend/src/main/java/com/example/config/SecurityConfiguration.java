@@ -1,8 +1,21 @@
-# 配置SpringSecurity基本内容
+package com.example.config;
 
-## SecurityConfiguration
 
-```java
+import com.example.entity.RestBean;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.SecurityFilterChain;
+
+import java.io.IOException;
+
 @Configuration
 public class SecurityConfiguration {
 
@@ -49,30 +62,3 @@ public class SecurityConfiguration {
 
     }
 }
-```
-
-
-
-## RestBean
-
-```java
-public record RestBean<T>(int code, T data, String message) {
-
-    public static <T> RestBean<T> success(T data) {
-        return new RestBean<>(200, data, "请求成功");
-    }
-
-    public static <T> RestBean<T> success() {
-        return success(null);
-    }
-
-    public static <T> RestBean<T> failure(int code, String message) {
-        return new RestBean<>(code, null, message);
-    }
-
-    public String asJSONString() {
-        return JSONObject.toJSONString(this, JSONWriter.Feature.WriteNulls);
-    }
-}
-```
-
