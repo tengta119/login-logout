@@ -368,3 +368,42 @@ public class JwtAuthorizeFilter extends OncePerRequestFilter { //过滤器
     }
 ```
 
+
+
+# 实现数据库的用户校验
+
+需要从数据库或其他源加载用户信息时，实现 `UserDetailsService` 并配置到 Spring Security 上下文中
+
+实现mapper，service
+
+**AccountServiceImpl**
+
+```java
+@Service
+public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> implements AccountService {
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        Account account = this.findAccountByNameOrEmail(username);
+        if (account == null) {
+            throw new UsernameNotFoundException("用户名或密码错误");
+        }
+        return User
+                .withUsername(username)
+                .password(account.getPassword())
+                .roles(account.getRole())
+                .build();
+    }
+
+
+    @Override
+    public Account findAccountByNameOrEmail(String text) {
+        return this.query()
+                .eq("username", text)
+                .or()
+                .eq("email", text)
+                .one();
+    }
+}
+
+```
+
