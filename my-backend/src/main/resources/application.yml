@@ -3,3 +3,8 @@ spring:
     jwt:
       key: my-secret-key
       expire: 7
+
+  data:
+    redis:
+      host: 47.115.213.32
+      port: 6379

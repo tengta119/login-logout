@@ -292,3 +292,79 @@ public class JwtAuthorizeFilter extends OncePerRequestFilter { //过滤器
 }
 ```
 
+
+
+
+
+# Jwt退出登录 
+
+[redis基本部署](https://blog.csdn.net/sss1513/article/details/144004502)
+
+使用redis实现黑名单功能，用户在退出登录时会将token的uuid存放在redis数据库上，用户在每次请求数据时，后端会校验**token是否合法**，然后校验**是否在黑名单中**，如果这两项其中有一个不符合要求则拒绝请求
+
+```java
+    @Resource
+    StringRedisTemplate template;
+
+    //判断token是否有效,如果有效则加入黑名单
+    public boolean invalidToken(String headerToken) {
+        String token = this.convertToken(headerToken);
+        if (token == null) {
+            return false;
+        }
+        Algorithm algorithm = Algorithm.HMAC256(key);
+        JWTVerifier jwtVerifier = JWT.require(algorithm).build();
+        try{
+            DecodedJWT verify = jwtVerifier.verify(token);
+            String id = verify.getId();
+            return deleteToken(id, verify.getExpiresAt());
+        } catch (JWTVerificationException e) {
+            return false;
+        }
+    }
+
+    //将token加入黑名单
+    private boolean deleteToken(String uuid, Date time) {
+        if (this.isInvalidToken(uuid)) {
+            return false;
+        }
+        Date now = new Date();
+        long expire = Math.max(time.getTime() - now.getTime(), 0);
+        template.opsForValue().set(Const.JWT_BLACK_LIST + uuid, "", expire, TimeUnit.MICROSECONDS);
+        return true;
+    }
+
+    //判断token是否在黑名单中
+    private boolean isInvalidToken(String uuid) {
+        return Boolean.TRUE.equals(template.hasKey(Const.JWT_BLACK_LIST + uuid));
+    }
+
+    public DecodedJWT resolveJwt(String headerToken) {
+        // 将头部的 token 转换为实际的 JWT token
+        String token = this.convertToken(headerToken);
+        // 如果 token 为 null，返回 null
+        if (token == null) {
+            return null;
+        }
+        // 使用 HMAC256 算法和密钥创建算法实例
+        Algorithm algorithm = Algorithm.HMAC256(key);
+        // 创建 JWT 验证器
+        JWTVerifier jwtVerifier = JWT.require(algorithm).build();
+        try {
+            // 验证 token 并获取解码后的 JWT
+            DecodedJWT verify = jwtVerifier.verify(token);
+            // 如果 token 在黑名单中，返回 null
+            if (this.isInvalidToken(verify.getId())) {
+                return null;
+            }
+            // 获取 token 的过期时间
+            Date expiresAt = verify.getExpiresAt();
+            // 如果当前时间在过期时间之后，返回 null，否则返回解码后的 JWT
+            return new Date().after(expiresAt) ? null : verify;
+        } catch (JWTVerificationException e) {
+            // 如果验证失败，返回 null
+            return null;
+        }
+    }
+```
+

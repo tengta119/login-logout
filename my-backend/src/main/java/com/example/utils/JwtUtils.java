@@ -6,7 +6,9 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Component;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class JwtUtils {
@@ -24,6 +28,42 @@ public class JwtUtils {
 
     @Value("${spring.security.jwt.expire}")
     int expire;
+
+    @Resource
+    StringRedisTemplate template;
+
+    //判断token是否有效,如果有效则加入黑名单
+    public boolean invalidToken(String headerToken) {
+        String token = this.convertToken(headerToken);
+        if (token == null) {
+            return false;
+        }
+        Algorithm algorithm = Algorithm.HMAC256(key);
+        JWTVerifier jwtVerifier = JWT.require(algorithm).build();
+        try{
+            DecodedJWT verify = jwtVerifier.verify(token);
+            String id = verify.getId();
+            return deleteToken(id, verify.getExpiresAt());
+        } catch (JWTVerificationException e) {
+            return false;
+        }
+    }
+
+    //将token加入黑名单
+    private boolean deleteToken(String uuid, Date time) {
+        if (this.isInvalidToken(uuid)) {
+            return false;
+        }
+        Date now = new Date();
+        long expire = Math.max(time.getTime() - now.getTime(), 0);
+        template.opsForValue().set(Const.JWT_BLACK_LIST + uuid, "", expire, TimeUnit.MICROSECONDS);
+        return true;
+    }
+
+    //判断token是否在黑名单中
+    private boolean isInvalidToken(String uuid) {
+        return Boolean.TRUE.equals(template.hasKey(Const.JWT_BLACK_LIST + uuid));
+    }
 
     public DecodedJWT resolveJwt(String headerToken) {
         // 将头部的 token 转换为实际的 JWT token
@@ -39,6 +79,10 @@ public class JwtUtils {
         try {
             // 验证 token 并获取解码后的 JWT
             DecodedJWT verify = jwtVerifier.verify(token);
+            // 如果 token 在黑名单中，返回 null
+            if (this.isInvalidToken(verify.getId())) {
+                return null;
+            }
             // 获取 token 的过期时间
             Date expiresAt = verify.getExpiresAt();
             // 如果当前时间在过期时间之后，返回 null，否则返回解码后的 JWT
@@ -58,6 +102,7 @@ public class JwtUtils {
 
         // 创建 JWT 并添加声明
         return JWT.create()
+                .withJWTId(UUID.randomUUID().toString())
                 .withClaim("id", id) // 添加用户 ID 声明
                 .withClaim("username", username) // 添加用户名声明
                 .withClaim("authorities", details.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList()) // 添加用户权限声明
