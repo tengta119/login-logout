@@ -12,7 +12,7 @@
     </div>
 
     <div class="right-card">
-
+      <router-view/>
     </div>
   </div>
 </template>
