@@ -1,9 +1,17 @@
 spring:
+  mail:
+    host: smtp.163.com
+    username: xxc20241192299468@163.com
+    password: ENdLVjwAHqUWZGfe
+  rabbitmq:
+    addresses: 47.115.213.32
+    username: admin
+    password: admin
+    virtual-host: /test
   security:
     jwt:
       key: my-secret-key
       expire: 7
-
   data:
     redis:
       host: 47.115.213.32

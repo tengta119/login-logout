@@ -452,3 +452,86 @@ public class CorsFilter extends HttpFilter {
 
 # 退出登录以及路由守卫实现
 
+
+
+# 验证码发送
+
+## registerEmailVerifyCode
+
+用户在请求验证码时，后端会将用户的**验证码类型、邮箱、验证码和ip**包装成一个map，并转存到消息队列中，还有将验证码存入到redis中，供后续验证
+
+```java
+    @Override
+    public String registerEmailVerifyCode(String type, String email, String ip) {
+        synchronized (ip.intern()) {
+            if (!this.verifyLimit(ip)) {
+                return "请求过于频繁";
+            }
+            Random random = new Random();
+            int code = random.nextInt(899999) + 100000;
+            Map<String, Object> data = Map.of("type", type, "email", email, "code", code);
+            amqpTemplate.convertAndSend("mail", data);
+            stringRedisTemplate.opsForValue()
+                    .set(Const.VERIFY_EMAIL_DATA + email, String.valueOf(code), 3, TimeUnit.MINUTES);
+            return null;
+        }
+    }
+
+    private boolean verifyLimit(String ip) {
+        String key = Const.VERIFY_EMAIL_LIMIT + ip;
+        return flowUtils.limitOnceCheck(key,60);
+    }
+```
+
+
+## sendMailMessage
+在队列的监听器中，监听器根据队列里的内容发送对应邮件
+
+```java
+    @RabbitHandler
+    public void sendMailMessage(Map<String, Object> data) {
+        String email = (String) data.get("email");
+        Integer code = (Integer) data.get("code");
+        String type = (String) data.get("type");
+        SimpleMailMessage message = switch (type) {
+            case "register" -> createMessage("注册验证码", "您的验证码是" + code, email);
+            case "forget" -> createMessage("忘记密码验证码", "您的验证码是" + code, email);
+            default -> null;
+        };
+        if (message == null) return;
+        sender.send(message);
+    }
+
+    private SimpleMailMessage createMessage(String title, String content, String email) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setSubject(title);
+        message.setText(content);
+        message.setTo(email);
+        message.setFrom(username);
+        return message;
+    }
+```
+
+
+
+**创建队列**
+
+```java
+@Configuration
+public class RabbitConfiguration {
+
+    @Bean("emailQueue")
+    public Queue emailQueue() {
+        return QueueBuilder
+                .durable("mail")
+                .build();
+    }
+
+    @Bean
+    public Jackson2JsonMessageConverter jsonMessageConverter(ObjectMapper objectMapper) {
+        return new Jackson2JsonMessageConverter(objectMapper);
+    }
+
+}
+```
+
