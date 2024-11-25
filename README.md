@@ -421,3 +421,29 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
 
 
 
+# 跨域手动配置
+
+```java
+//解决跨域问题
+@Component
+@Order(Const.ORDER_CORS)
+public class CorsFilter extends HttpFilter {
+
+    @Override
+    protected void doFilter(HttpServletRequest request,
+                            HttpServletResponse response,
+                            FilterChain chain) throws IOException, ServletException {
+        this.addCorsHeader(request, response);
+        chain.doFilter(request, response);
+    }
+
+    private void addCorsHeader(HttpServletRequest request, HttpServletResponse response) {
+        response.setHeader("Access-Control-Allow-Origin", request.getHeader("Origin"));
+        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE, PUT");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    }
+}
+```
+
+![image-20241125095211192](C:/Users/11922/AppData/Roaming/Typora/typora-user-images/image-20241125095211192.png)
