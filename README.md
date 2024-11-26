@@ -647,6 +647,58 @@ public class RabbitConfiguration {
 
 
 
+# 实现限流操作
+
+```java
+@Component
+@Order(Const.ORDER_LIMIT)
+public class FlowLimitFilter extends HttpFilter {
+
+    @Resource
+    StringRedisTemplate template;
+
+    @Override
+    protected void doFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws IOException, ServletException {
+        String address = request.getRemoteAddr();
+        if (this.tryCount(address)) {
+            chain.doFilter(request, response);
+        } else {
+            this.writeBlockMessage(response);
+        }
+
+    }
+
+    private void writeBlockMessage(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(RestBean.forbidden("操作频繁，请稍后重试").asJSONString());
+    }
+
+
+    private boolean tryCount(String ip) {
+        synchronized (ip.intern()) {
+            if(Boolean.TRUE.equals(template.hasKey(Const.FLOW_LIMIT_BLOCK + ip))) {
+                return false;
+            }
+            return this.limitPeriodCheck(ip);
+        }
+    }
+
+    private boolean limitPeriodCheck(String ip) {
+        if (Boolean.TRUE.equals(template.hasKey(Const.FLOW_LIMIT_COUNTER + ip))) {
+            Long increment = Optional.ofNullable(template.opsForValue().increment(Const.FLOW_LIMIT_COUNTER + ip)).orElse(0L);
+            if (increment > 0) {
+                template.opsForValue().set(Const.FLOW_LIMIT_BLOCK + ip, "", 30, TimeUnit.SECONDS);
+            }
+        } else {
+            template.opsForValue().set(Const.FLOW_LIMIT_COUNTER + ip, "1", 3, TimeUnit.SECONDS);
+        }
+        return true;
+    }
+}
+
+```
+
 
 
 
