@@ -576,3 +576,9 @@ public class RabbitConfiguration {
 
 # 注册界面编写
 
+
+
+# 完善注册操作
+
+
+
