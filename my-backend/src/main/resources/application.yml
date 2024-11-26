@@ -16,6 +16,7 @@ spring:
     redis:
       host: 47.115.213.32
       port: 6379
+      password: 123456
   datasource:
     username: root
     password: baby520.
