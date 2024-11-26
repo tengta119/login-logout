@@ -15,7 +15,7 @@
         <div style="margin-top: 50px">
           <el-form :model="form" :rules="rules" @validate="onValidate" ref="formRef">
             <el-form-item prop="email">
-              <el-input v-model="form.email" type="text" placeholder="电子邮件地址">
+              <el-input v-model="form.email" type="text " placeholder="电子邮件地址">
                 <template #prefix>
                   <el-icon><Message /></el-icon>
                 </template>

@@ -586,3 +586,74 @@ public class RabbitConfiguration {
 
 
 
+# 密码重置接口设计
+
+首先用户向后端请求验证码，来验证邮箱是否正确，以此来判断用户是否可以重置密码
+
+![image-20241126172120136](C:/Users/11922/AppData/Roaming/Typora/typora-user-images/image-20241126172120136.png)
+
+接口**restConfirm**
+
+```java
+    @PostMapping("/reset-confirm")
+    public RestBean<Void> restConfirm(@RequestBody @Valid ConfirmResetVO vo) {
+        return this.messageHandle(() -> accountService.restConfirm(vo));
+    }
+```
+
+```java
+    @Override
+    public String restConfirm(ConfirmResetVO vo) {
+        String email = vo.getEmail();
+        String code = stringRedisTemplate.opsForValue().get(Const.VERIFY_EMAIL_DATA + email);
+        if (code == null) {
+            return "请先获取验证码";
+        }
+        if (!code.equals(vo.getCode())) {
+            return "验证码错误";
+        }
+        return null;
+
+    }
+```
+
+然后进行重置密码，此操作也需要判断验证码是否正确
+
+接口
+
+```java
+    @PostMapping("/reset-password")
+    public RestBean<Void> restConfirm(@RequestBody @Valid EmailRestVO vo) {
+        return this.messageHandle(() -> accountService.restEmailAccountPassword(vo));
+    }
+```
+
+```java
+    @Override
+    public String restEmailAccountPassword(EmailRestVO vo) {
+        String email = vo.getEmail();
+        String verify = this.restConfirm(new ConfirmResetVO(email, vo.getCode()));
+        if (verify != null) {
+            return verify;
+        }
+        String password = passwordEncoder.encode(vo.getPassword());
+        boolean update = this.update().eq("email", email).set("password", password).update();
+        if(update){
+            stringRedisTemplate.delete(Const.VERIFY_EMAIL_DATA + email);
+        }
+        return null;
+    }
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
