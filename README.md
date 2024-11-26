@@ -483,7 +483,6 @@ public class CorsFilter extends HttpFilter {
     }
 ```
 
-
 ## sendMailMessage
 在队列的监听器中，监听器根据队列里的内容发送对应邮件
 
@@ -533,5 +532,43 @@ public class RabbitConfiguration {
     }
 
 }
+```
+
+
+
+# 注册接口实现
+
+## register
+
+````java
+    @PostMapping("/register")
+    public RestBean<Void> register(@RequestBody @Validated EmailRegisterVO emailRegisterVO) {
+        return this.messageHandle(() -> accountService.registerEmailAccount(emailRegisterVO));
+    }
+````
+
+## registerEmailAccount
+
+```java
+    public String registerEmailAccount(EmailRegisterVO emailRegisterVO) {
+        String email = emailRegisterVO.getEmail();
+        String code = stringRedisTemplate.opsForValue().get(Const.VERIFY_EMAIL_DATA + email);
+        if (code == null || !code.equals(emailRegisterVO.getCode())) {
+            return "验证码错误";
+        }
+        if (this.existsAccountByEmail(email)) {
+            return "邮箱已被注册";
+        }
+        if (this.existsAccountByUsername(emailRegisterVO.getUsername())) {
+            return "用户名已被注册";
+        }
+        Account account = new Account(null, emailRegisterVO.getUsername(), passwordEncoder.encode(emailRegisterVO.getPassword()), email, "user", new Date());
+        if (this.save(account)) {
+            stringRedisTemplate.delete(Const.VERIFY_EMAIL_DATA + email);
+            return null;
+        } else {
+            return "内部错误，请稍后再试";
+        }
+    }
 ```
 
