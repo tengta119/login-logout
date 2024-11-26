@@ -78,7 +78,7 @@ function userLogin(){
       </el-divider>
     </div>
     <div style="">
-      <el-button style="width: 270px" type="warning" plain>立即注册</el-button>
+      <el-button @click="router.push('/register')" style="width: 270px" type="warning" plain>立即注册</el-button>
     </div>
   </div>
 </template>
